@@ -24,6 +24,9 @@ export class PrismaService
 
   async onModuleInit() {
     await this.$connect();
+    // $connect() no abre la conexión real con el adaptador pg; se precalienta
+    // el pool (TLS + handshake) para que la primera petición no la pague.
+    await this.$queryRaw`SELECT 1`;
   }
 
   async onModuleDestroy() {

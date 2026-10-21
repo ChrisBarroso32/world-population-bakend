@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '../../generated/prisma/client';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import type { Cache } from 'cache-manager';
 import { PrismaService } from '../../lib/database/prisma.service';
-import { LATEST_YEAR } from './demographics.constants';
+import { CACHE_KEYS, LATEST_YEAR } from './demographics.constants';
 import {
   ContinentSummaryResponse,
   CountryResponse,
@@ -17,25 +18,57 @@ interface ContinentSummaryRow {
 
 @Injectable()
 export class DemographicsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(CACHE_MANAGER) private readonly cache: Cache,
+  ) {}
 
   async findCountries({
     search,
     continent,
   }: CountriesQueryDto): Promise<CountryResponse[]> {
-    const where: Prisma.CountryWhereInput = {};
-    if (search) {
-      where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { cca3: { equals: search, mode: 'insensitive' } },
-      ];
-    }
-    if (continent) {
-      where.continent = { equals: continent, mode: 'insensitive' };
+    const countries = await this.cache.wrap(CACHE_KEYS.countries, () =>
+      this.loadCountries(),
+    );
+
+    // Los filtros se aplican en memoria sobre la lista completa cacheada: así
+    // el caché tiene una sola clave y no crece con cada búsqueda distinta.
+    const term = search?.toLowerCase();
+    const continentName = continent?.toLowerCase();
+    return countries.filter(
+      (country) =>
+        (!term ||
+          country.name.toLowerCase().includes(term) ||
+          country.cca3.toLowerCase() === term) &&
+        (!continentName || country.continent.toLowerCase() === continentName),
+    );
+  }
+
+  async findPopulationHistory(
+    codes: string[],
+  ): Promise<PopulationHistoryResponse[]> {
+    const byCode = await this.cache.wrap(CACHE_KEYS.populationHistory, () =>
+      this.loadPopulationHistory(),
+    );
+
+    const missing = codes.filter((code) => !byCode[code]);
+    if (missing.length > 0) {
+      throw new NotFoundException(
+        `Países no encontrados: ${missing.join(', ')}`,
+      );
     }
 
+    return codes.map((code) => byCode[code]);
+  }
+
+  getContinentSummary(): Promise<ContinentSummaryResponse[]> {
+    return this.cache.wrap(CACHE_KEYS.continentSummary, () =>
+      this.loadContinentSummary(),
+    );
+  }
+
+  private async loadCountries(): Promise<CountryResponse[]> {
     const countries = await this.prisma.country.findMany({
-      where,
       include: { populationRecords: { where: { year: LATEST_YEAR } } },
     });
 
@@ -56,37 +89,30 @@ export class DemographicsService {
       );
   }
 
-  async findPopulationHistory(
-    codes: string[],
-  ): Promise<PopulationHistoryResponse[]> {
+  private async loadPopulationHistory(): Promise<
+    Record<string, PopulationHistoryResponse>
+  > {
     const countries = await this.prisma.country.findMany({
-      where: { cca3: { in: codes } },
       include: { populationRecords: { orderBy: { year: 'asc' } } },
     });
 
-    const byCode = new Map(countries.map((country) => [country.cca3, country]));
-    const missing = codes.filter((code) => !byCode.has(code));
-    if (missing.length > 0) {
-      throw new NotFoundException(
-        `Países no encontrados: ${missing.join(', ')}`,
-      );
-    }
-
-    return codes.map((code) => {
-      const country = byCode.get(code)!;
-      return {
-        cca3: country.cca3,
-        name: country.name,
-        continent: country.continent,
-        series: country.populationRecords.map(({ year, population }) => ({
-          year,
-          population: Number(population),
-        })),
-      };
-    });
+    return Object.fromEntries(
+      countries.map((country) => [
+        country.cca3,
+        {
+          cca3: country.cca3,
+          name: country.name,
+          continent: country.continent,
+          series: country.populationRecords.map(({ year, population }) => ({
+            year,
+            population: Number(population),
+          })),
+        },
+      ]),
+    );
   }
 
-  async getContinentSummary(): Promise<ContinentSummaryResponse[]> {
+  private async loadContinentSummary(): Promise<ContinentSummaryResponse[]> {
     const rows = await this.prisma.$queryRaw<ContinentSummaryRow[]>`
       SELECT c."continent" AS "continent",
              SUM(pr."population") AS "totalPopulation",

@@ -49,7 +49,11 @@ export class DemographicsService {
           ? Number(populationRecords[0].population)
           : null,
       }))
-      .sort((a, b) => (b.population ?? 0) - (a.population ?? 0));
+      .sort(
+        (a, b) =>
+          (b.population ?? 0) - (a.population ?? 0) ||
+          a.name.localeCompare(b.name),
+      );
   }
 
   async findPopulationHistory(
@@ -99,13 +103,21 @@ export class DemographicsService {
       0,
     );
 
-    return rows.map((row) => ({
+    // Centésimas de punto porcentual; el residuo del redondeo se asigna a la
+    // primera fila (la de mayor población) para que la suma sea exactamente 100.
+    const hundredths = rows.map((row) =>
+      total ? Math.round((Number(row.totalPopulation) / total) * 10000) : 0,
+    );
+    if (total && hundredths.length > 0) {
+      hundredths[0] +=
+        10000 - hundredths.reduce((sum, value) => sum + value, 0);
+    }
+
+    return rows.map((row, index) => ({
       continent: row.continent,
       totalPopulation: Number(row.totalPopulation),
       countryCount: Number(row.countryCount),
-      percentage: total
-        ? Math.round((Number(row.totalPopulation) / total) * 10000) / 100
-        : 0,
+      percentage: hundredths[index] / 100,
     }));
   }
 }

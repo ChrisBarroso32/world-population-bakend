@@ -1,3 +1,4 @@
+import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { ArrayMaxSize, ArrayMinSize, IsArray, Matches } from 'class-validator';
 import { MAX_HISTORY_COUNTRIES } from '../demographics.constants';
@@ -13,14 +14,24 @@ const parseCountries = ({ value }: { value: unknown }) => {
   return [...new Set(codes)];
 };
 
+// class-validator evalúa los decoradores de abajo hacia arriba; con
+// stopAtFirstError, IsArray debe ir al final para reportarse primero.
 export class PopulationHistoryQueryDto {
+  @ApiProperty({
+    description:
+      'Códigos CCA3 separados por coma o parámetro repetido (máx. 50)',
+    type: String,
+    example: 'MEX,USA',
+  })
   @Transform(parseCountries)
-  @IsArray()
-  @ArrayMinSize(1)
-  @ArrayMaxSize(MAX_HISTORY_COUNTRIES)
   @Matches(/^[A-Z]{3}$/, {
     each: true,
     message: 'Cada código de país debe tener 3 letras (CCA3)',
   })
+  @ArrayMaxSize(MAX_HISTORY_COUNTRIES, {
+    message: `countries admite como máximo ${MAX_HISTORY_COUNTRIES} códigos`,
+  })
+  @ArrayMinSize(1, { message: 'countries debe incluir al menos un código' })
+  @IsArray({ message: 'countries es obligatorio (ej. countries=MEX,USA)' })
   countries: string[];
 }

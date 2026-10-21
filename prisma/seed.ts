@@ -2,13 +2,14 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Logger, Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { AppConfigModule } from '../src/config/env.validation';
 import { PrismaModule } from '../src/lib/database/prisma.module';
 import { PrismaService } from '../src/lib/database/prisma.service';
 
 const YEARS = [2022, 2020, 2015, 2010, 2000, 1990, 1980, 1970] as const;
 const CSV_PATH = join(__dirname, '..', 'dataset', 'world_population.csv');
 
-@Module({ imports: [PrismaModule] })
+@Module({ imports: [AppConfigModule, PrismaModule] })
 class SeedModule {}
 
 function parseCsvLine(line: string): string[] {

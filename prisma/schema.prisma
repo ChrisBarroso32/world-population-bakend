@@ -11,3 +11,30 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+model Country {
+  cca3            String   @id @db.Char(3)
+  name            String   @db.VarChar(100)
+  capital         String   @db.VarChar(100)
+  continent       String   @db.VarChar(30)
+  areaKm2         Int
+  density         Decimal  @db.Decimal(10, 4)
+  growthRate      Decimal  @db.Decimal(6, 4)
+  worldPercentage Decimal  @db.Decimal(5, 2)
+
+  populationRecords PopulationRecord[]
+
+  @@map("countries")
+}
+
+model PopulationRecord {
+  id          Int     @id @default(autoincrement())
+  countryCca3 String  @db.Char(3)
+  year        Int
+  population  BigInt
+
+  country Country @relation(fields: [countryCca3], references: [cca3], onDelete: Cascade)
+
+  @@unique([countryCca3, year])
+  @@map("population_records")
+}

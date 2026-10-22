@@ -24,7 +24,7 @@ export class DemographicsController {
   @ApiOperation({
     summary: 'Listar países',
     description:
-      'Devuelve todos los países (sin paginar) ordenados por población descendente y luego por nombre.',
+      'Devuelve todos los países ordenados por población descendente y luego por nombre.',
   })
   @ApiOkResponse({ type: [CountryResponse] })
   @ApiBadRequestResponse({ description: 'Parámetros de query inválidos' })

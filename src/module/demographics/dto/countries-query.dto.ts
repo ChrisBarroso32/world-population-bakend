@@ -9,7 +9,7 @@ export class CountriesQueryDto {
   @ApiPropertyOptional({
     description:
       'Nombre parcial (sin distinguir mayúsculas) o código CCA3 exacto',
-    example: 'mex',
+    example: 'MEX',
     maxLength: 100,
   })
   @IsOptional()
@@ -20,7 +20,7 @@ export class CountriesQueryDto {
 
   @ApiPropertyOptional({
     description: 'Continente exacto (sin distinguir mayúsculas)',
-    example: 'Europe',
+    example: 'North America',
     maxLength: 30,
   })
   @IsOptional()

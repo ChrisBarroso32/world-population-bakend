@@ -21,7 +21,7 @@ export class PopulationHistoryQueryDto {
     description:
       'Códigos CCA3 separados por coma o parámetro repetido (máx. 50)',
     type: String,
-    example: 'MEX,USA',
+    example: 'MEX,USA,FRA',
   })
   @Transform(parseCountries)
   @Matches(/^[A-Z]{3}$/, {
